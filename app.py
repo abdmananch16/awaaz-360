@@ -8,6 +8,9 @@ from datetime import datetime
 from huggingface_hub import InferenceClient
 from tavily import TavilyClient
 
+# CACHE BUSTER - Change this to force Streamlit Cloud to reload
+CACHE_VERSION = "v2.1"
+
 # ════════════════════════════════════════════════════════════
 #  CONFIGURATION
 # ════════════════════════════════════════════════════════════
@@ -242,42 +245,103 @@ def fetch_pso():
         return None, None
 
 # ════════════════════════════════════════════════════════════
-#  CHATBOT WITH HUGGING FACE
+#  CHATBOT - RULE BASED ONLY (NO API CALLS)
 # ════════════════════════════════════════════════════════════
+
+CHATBOT_RESPONSES = {
+    "bijli": "⚡ LESCO Bijli Complaint:\n📞 118 (toll-free)\n🌐 www.lesco.gov.pk\n💻 Online: lesco.gov.pk/complaint",
+    "lesco": "⚡ LESCO Bijli Complaint:\n📞 118 (toll-free)\n🌐 www.lesco.gov.pk",
+    "electricity": "⚡ LESCO Bijli Complaint:\n📞 118 (toll-free)\n🌐 www.lesco.gov.pk",
+    "paani": "💧 WASA Pani Complaint:\n📞 0800-9272 (toll-free)\n🌐 www.wasa.com.pk",
+    "water": "💧 WASA Pani Complaint:\n📞 0800-9272 (toll-free)\n🌐 www.wasa.com.pk",
+    "wasa": "💧 WASA Pani Complaint:\n📞 0800-9272 (toll-free)\n🌐 www.wasa.com.pk",
+    "gas": "🔥 SNGPL Gas Complaint:\n📞 0800-00786\n🌐 www.sngpl.com.pk",
+    "sngpl": "🔥 SNGPL Gas Complaint:\n📞 0800-00786\n🌐 www.sngpl.com.pk",
+    "sadak": "🛣️ Road Complaint:\n📞 NHA: 0800-03000\n📞 Punjab RHD: 042-99210080",
+    "road": "🛣️ Road Complaint:\n📞 NHA: 0800-03000\n📞 Punjab RHD: 042-99210080",
+    "pothole": "🛣️ Road Complaint:\n📞 NHA: 0800-03000\n📞 Punjab RHD: 042-99210080",
+    "emergency": "🚨 Emergency Numbers:\n🚑 Rescue: [📞 1122](tel:1122)\n🚔 Police: [📞 15](tel:15)\n🔥 Fire: [📞 16](tel:16)\n🏥 Edhi: [📞 115](tel:115)\n🚘 Motorway: [📞 130](tel:130)",
+    "rescue": "🚑 Rescue 1122\n📞 [Call: 1122](tel:1122)\n📞 24/7 Medical & Emergency\n🌐 www.rescue.gov.pk",
+    "police": "🚔 Police Emergency:\n📞 [Emergency: 15](tel:15)\n📞 [Non-emergency: 051-9252244](tel:0519252244)\n💻 Online FIR: punjab.gov.pk/opfir",
+    "fir": "📋 Online FIR:\n🌐 punjab.gov.pk/opfir\n📞 [Police: 15](tel:15)",
+    "blood": "🩸 Blood Donation:\n📞 [Edhi: 021-111-33-44-4](tel:02111133444)\n💻 App mein Blood Bank section check karein",
+    "donor": "🩸 Blood Donation:\n📞 [Edhi: 021-111-33-44-4](tel:02111133444)\n💻 App mein Blood Bank section check karein",
+    "khoon": "🩸 Blood Donation:\n📞 [Edhi: 021-111-33-44-4](tel:02111133444)\n💻 App mein Blood Bank section check karein",
+    "fuel": "⛽ Fuel Prices:\n🌐 www.psopk.com\n📱 App mein Fuel section check karein",
+    "petrol": "⛽ Fuel Prices:\n🌐 www.psopk.com\n📱 App mein Fuel section check karein",
+    "diesel": "⛽ Fuel Prices:\n🌐 www.psopk.com\n📱 App mein Fuel section check karein",
+    "namaz": "🕌 Prayer Times:\n📱 App mein Namaz section check karein\n🌐 aladhan.com",
+    "prayer": "🕌 Prayer Times:\n📱 App mein Namaz section check karein\n🌐 aladhan.com",
+    "azan": "🕌 Prayer Times:\n📱 App mein Namaz section check karein\n🌐 aladhan.com",
+    "mausam": "🌤️ Weather:\n📱 App mein Mausam section check karein",
+    "weather": "🌤️ Weather:\n📱 App mein Mausam section check karein",
+    "barish": "🌤️ Weather:\n📱 App mein Mausam section check karein",
+    "shikayat": "📝 Complaint Register:\n📱 App mein 'Shikayat' section check karein\n✍️ Apna masla detail mein likhein",
+    "complaint": "📝 Complaint Register:\n📱 App mein 'Shikayat' section check karein\n✍️ Apna masla detail mein likhein",
+    "bnaya": "👨‍💻 AWAAZ360 Pro banaya hai **Manan** ne\n🇵🇰 Pakistan ka Civic Platform\n📱 Shikayat, Malumat, Madad",
+    "creator": "👨‍💻 AWAAZ360 Pro banaya hai **Manan** ne\n🇵🇰 Pakistan ka Civic Platform",
+    "manan": "👨‍💻 AWAAZ360 Pro banaya hai **Manan** ne\n🇵🇰 Pakistan ka Civic Platform",
+    "hello": "Assalam-o-Alaikum! 👋 Kya madad chahiye? Puchh sakte ho: bijli, paani, gas, sadak, emergency, blood, fuel, namaz, mausam",
+    "hi": "Assalam-o-Alaikum! 👋 Kya madad chahiye? Puchh sakte ho: bijli, paani, gas, sadak, emergency, blood, fuel, namaz, mausam",
+    "salam": "Walaikum Assalam! 👋 Kya madad chahiye?",
+    "thanks": "Khushi hui madad karke! Allah Hafiz 🤲",
+    "shukriya": "Khushi hui madad karke! Allah Hafiz 🤲",
+    "thank": "Khushi hui madad karke! Allah Hafiz 🤲",
+}
+
 def get_bot_response(user_message):
-    if not hf_client:
-        return "❌ Chatbot service not configured. Please set HF_API_KEY."
+    """Simple rule-based chatbot - works everywhere"""
+    q = user_message.lower().strip()
     
-    system_prompt = """You are a helpful civic assistant for AWAAZ360, a citizen complaint system created by Manan. 
-You help Pakistani citizens with:
-- Electricity (LESCO, WAPDA) complaints and info
-- Water (WASA) issues
-- Gas (SNGPL, SSGC) problems
-- Road and infrastructure complaints
-- Emergency services (Rescue 1122, Police, Fire)
-- Fuel prices and updates
-- Prayer times and weather information
-- Blood donation queries
+    # Remove common Urdu/English filler words and special characters
+    q_clean = q.replace("mujhe", "").replace("kya", "").replace("hai", "").replace("haha", "").replace("?", "").replace("!", "").replace(".", "").strip()
+    
+    # Handle common typos and abbreviations
+    typo_map = {
+        "hlo": "hello",
+        "hi": "hello",
+        "salam": "hello",
+        "khoon": "blood",
+        "bijli": "bijli",
+        "paani": "paani",
+        "gas": "gas",
+        "sadak": "sadak",
+        "fuel": "fuel",
+        "namaz": "namaz",
+        "mausam": "mausam",
+        "emergency": "emergency",
+        "blood": "blood",
+        "shikayat": "shikayat",
+        "complaint": "complaint",
+        "fir": "fir",
+        "police": "police",
+        "rescue": "rescue",
+        "petrol": "fuel",
+        "diesel": "fuel",
+        "lesco": "bijli",
+        "wasa": "paani",
+        "sngpl": "gas",
+    }
+    
+    # Check for typo matches first
+    for typo, correct in typo_map.items():
+        if typo in q_clean:
+            q_clean = q_clean.replace(typo, correct)
+    
+    # Check for keyword matches - prioritize exact word matches first
+    for key, response in CHATBOT_RESPONSES.items():
+        # Check if keyword appears as a word (not just substring)
+        if f" {key} " in f" {q_clean} " or q_clean.startswith(key) or q_clean.endswith(key) or q_clean == key:
+            return response
+        # Fallback to substring match
+        if key in q_clean:
+            return response
+    
+    return "Mujhe samajh nahi aaya 🤔\n\nPuchh sakte ho:\n⚡ bijli\n💧 paani\n🔥 gas\n🛣️ sadak\n🚨 emergency\n🩸 blood\n⛽ fuel\n🕌 namaz\n🌤️ mausam\n📝 shikayat"
 
-Always respond in a mix of Urdu and English (Roman Urdu), be helpful, concise, and provide actionable information.
-If you don't know something specific, guide them to the relevant helpline or government portal."""
-
-    try:
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message}
-        ]
-        
-        response = hf_client.chat_completion(
-            messages=messages,
-            model="meta-llama/Llama-3.2-3B-Instruct",
-            max_tokens=500,
-            temperature=0.7
-        )
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Sorry, chatbot service temporarily unavailable. Error: {str(e)}"
+def get_fallback_bot_response(user_message):
+    """Alias for compatibility"""
+    return get_bot_response(user_message)
 
 # ════════════════════════════════════════════════════════════
 #  NEWS FETCHING WITH TAVILY
@@ -658,12 +722,19 @@ elif page == "🚨 Emergency":
     cols = st.columns(4)
     for i, (icon, name, num, desc) in enumerate(services):
         with cols[i % 4]:
+            # Create clickable phone link
+            tel_link = f"tel:{num.replace('-', '')}"
             st.markdown(f"""<div class="stat-card">
                 <p style="font-size: 2rem;">{icon}</p>
                 <p style="font-weight: bold; margin: 0.5rem 0;">{name}</p>
                 <p class="stat-label">{desc}</p>
-                <p style="font-size: 1.2rem; font-weight: bold; color: #00D4AA; margin-top: 0.5rem;">📞 {num}</p>
+                <a href="{tel_link}" style="text-decoration: none;">
+                    <p style="font-size: 1.2rem; font-weight: bold; color: #00D4AA; margin-top: 0.5rem; cursor: pointer; transition: all 0.3s;">📞 {num}</p>
+                </a>
             </div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    st.info("💡 **Tip:** Click on any phone number to dial directly from your device!")
 
 # ════════════════════════════════════════════════════════════
 #  BLOOD BANK
